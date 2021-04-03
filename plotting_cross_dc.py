@@ -42,3 +42,9 @@ all_files = glob.glob(os.path.join(data_path+'trc_requests_timer_p99_weighted_dc
 
 all_csv = (pd.read_csv(f, sep=',') for f in all_files)
 df_merged_p99   = pd.concat(all_csv, ignore_index=True)
+sns.set(rc={'figure.figsize':(20,13.27)})
+ax = sns.lineplot(x = 'ds', y = 'y',label='df_merged_p99', data = df_merged_p99 )
+
+ax.set(xlabel='dates ', ylabel='usage', title='metrics')
+ax.xaxis.set_major_locator(MultipleLocator(200))
+plt.show()
