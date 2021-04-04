@@ -19,17 +19,14 @@ avg_count_node_cpu_seconds_path = '/avg(count (node_cpu_seconds_total{mode=_idle
 avg_over_time_path = '/avg(avg_over_time(TRC_server_gauge{server=label_1=_MemoryUsage)'
 avg_node_memory_path = '/avg(avg(node_memory_MemTotal_bytes{hostname=~_water401_water427_water428_water449_})) by (hostname)'
 
-paths = [[max_node_load_path, 'max_node_load15'], [p99_path, 'p99'], [sum_path, 'sum = recommendationReq,timer_count']
-    , [max_over_time_path, 'max_over_time-mem usage'], [avg_node_load15_path, 'avg_node_load15'],
-         [avg_count_node_cpu_seconds_path, 'avg_count_node_cpu_seconds'], [avg_over_time_path, 'avg_over_time- mem usage']
-    , [avg_node_memory_path, 'avg_node_memory-bytes']]
-
-#avg_count_node_cpu_seconds
-#avg_node_memory-bytes
-
 # paths = [[max_node_load_path, 'max_node_load15'], [p99_path, 'p99'], [sum_path, 'sum = recommendationReq,timer_count']
 #     , [max_over_time_path, 'max_over_time-mem usage'], [avg_node_load15_path, 'avg_node_load15'],
-#           [avg_over_time_path, 'avg_over_time- mem usage']]
+#          [avg_count_node_cpu_seconds_path, 'avg_count_node_cpu_seconds'], [avg_over_time_path, 'avg_over_time- mem usage']
+#     , [avg_node_memory_path, 'avg_node_memory-bytes']]
+
+paths = [[max_node_load_path, 'max_node_load15'], [p99_path, 'p99'], [sum_path, 'sum = recommendationReq,timer_count']
+    , [max_over_time_path, 'max_over_time-mem usage'], [avg_node_load15_path, 'avg_node_load15'],
+          [avg_over_time_path, 'avg_over_time- mem usage']]
 
 data_path = 'Data/Single servers/AM/'
 cores_40_path = '40 cores 187.35 GB'
@@ -46,25 +43,25 @@ def getCsv(data_path, core_path, metric_path, name_of_metric):
 
 # def plotting():
 
-csv_data_40_cores = [getCsv(data_path, cores_40_path, path[0], path[1]) for path in paths]
-csv_data_40_cores = reduce(lambda left, right: pd.merge(left, right, on=['dates'],
-                                                        how='outer'), csv_data_40_cores)
 
-data_to_scale = csv_data_40_cores.drop('dates', 1)
+
+csv_data_40_cores_6_days = [getCsv(data_path, cores_40_path_copy, path[0], path[1]) for path in paths]
+csv_data_40_cores_6_days = reduce(lambda left, right: pd.merge(left, right, on=['dates'],
+                                                        how='outer'), csv_data_40_cores_6_days)
+
+data_to_scale = csv_data_40_cores_6_days.drop('dates', 1)
 
 normalized_df=(data_to_scale-data_to_scale.min())/(data_to_scale.max()-data_to_scale.min())
 normalized_df = normalized_df.merge(
-    right=csv_data_40_cores['dates'],
+    right=csv_data_40_cores_6_days['dates'],
     left_index=True,
     right_index=True,
     suffixes=['', '_norm'])
 normalized_df = normalized_df.melt('dates', var_name='cols',  value_name='vals')
-g = sns.lineplot(x="dates", y="vals", hue='cols', data=normalized_df)
-g.xaxis.set_major_locator(MultipleLocator(200))
+g1 = sns.lineplot(x="dates", y="vals", hue='cols', data=normalized_df)
+g1.xaxis.set_major_locator(MultipleLocator(200))
 plt.xlim(0)
 plt.show()
-
-
 
 
 
