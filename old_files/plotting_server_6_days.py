@@ -28,7 +28,7 @@ paths = [[max_node_load_path, 'max_node_load15'], [p99_path, 'p99'], [sum_path, 
     , [max_over_time_path, 'max_over_time-mem usage'], [avg_node_load15_path, 'avg_node_load15'],
           [avg_over_time_path, 'avg_over_time- mem usage']]
 
-data_path = 'Data/Single servers/AM/'
+data_path = '../Data/Single servers/AM/'
 cores_40_path = '40 cores 187.35 GB'
 cores_40_path_copy = '40 cores 187.35 GB - Copy'
 

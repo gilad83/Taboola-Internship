@@ -1,0 +1,155 @@
+import os, glob
+import time
+from functools import reduce
+from os import path
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from matplotlib.ticker import MultipleLocator
+from matplotlib.ticker import OldAutoLocator
+import matplotlib.ticker as ticker
+from sklearn import preprocessing
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
+
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.layers import LSTM
+from keras import metrics
+
+import pandas as pd
+import plotly.express as px
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+
+#single server
+avg_cpu_load = '/avg_cpu_load'
+avg_heap = '/avg_heap'
+avg_memory = '/avg_memory'
+avg_num_cores = '/avg_num_cores'
+cpu_user_util = '/cpu_user_util'
+max_cpu_load = '/max_cpu_load'
+max_heap = '/max_heap'
+p99_response_time = '/p99_response_time'
+reco_rate = '/reco_rate'
+load_score_meter = '/load_score_meter'
+#cross dc
+avg_cpu_load_DC = '/avg(node_load15{hostname=~_^water._}) by (domain)'
+avg_heap_DC = '/avg_heap'
+avg_memory_Dc = '/avg(avg(node_memory_MemTotal_bytes{hostname=~_^water._})) by (hostname)'
+avg_num_cores_Dc = '/avg(count (node_cpu_seconds_total{mode=_idle_,hostname=~_^water._,job=~_node_exporter_}) by (hostname))'
+max_cpu_load_Dc = '/max(node_load15{hostname=~_^water._}) by (domain)'
+max_heap_Dc = '/max_heap'
+p99_response_time_Dc = '/trc_requests_timer_p99_weighted_dc'
+reco_rate_Dc = '/recommendation_requests_5m_rate_dc'
+
+
+
+paths_cross_dc = [[avg_cpu_load_DC, 'avg_cpu_load'], [avg_heap_DC, 'avg_heap'], [avg_memory_Dc, 'avg_memory']
+    , [avg_num_cores_Dc, 'avg_num_cores'], [max_cpu_load_Dc, 'cpu_user_util'],
+         [max_cpu_load_Dc, 'max_cpu_load'], [max_heap_Dc, 'max_heap']
+    , [p99_response_time_Dc, 'p99_response_time'], [reco_rate_Dc, 'reco_rate']]
+
+paths_server = [[avg_cpu_load, 'avg_cpu_load'], [avg_memory, 'avg_memory']
+    , [avg_num_cores, 'avg_num_cores'], [cpu_user_util, 'cpu_user_util'],
+         [max_cpu_load, 'max_cpu_load'], [max_heap, 'max_heap']
+    , [p99_response_time, 'p99_response_time'], [reco_rate, 'reco_rate'], [load_score_meter, 'load_score_meter']]
+
+
+
+# Data/Single servers/AM/40 cores 187.35 GB
+data_path_servers  = 'Data/Single servers'
+data_path_cross_Dc = 'Data/Cross DC'
+cores_32_path = '32 cores 125.6 GB'
+cores_40_path = '40 cores 187.35 GB'
+cores_48_path = '48 cores 187.19 GB'
+cores_72_path = '72 cores 251.63GB'
+cores_40_path_copy = '40 cores 187.35 GB - Copy'
+country_AM = '/AM/'
+country_IL = '/IL/'
+country_LA = '/LA/'
+
+def getCsv(data_path,country, core_path, metric_path, name_of_metric):
+    if (data_path == data_path_cross_Dc):
+        all_files = glob.glob(os.path.join(data_path + country + metric_path, "*.csv"))
+    else:
+        all_files = glob.glob(os.path.join(data_path + country + core_path + metric_path, "*.csv"))
+    all_csv = (pd.read_csv(f, sep=',') for f in all_files)
+    new_csv = pd.concat(all_csv, ignore_index=True)
+    new_csv.columns = ['dates', name_of_metric]
+    return new_csv
+
+
+# def plotting():
+
+def plot(paths,data_path,country,cores_path, figure_num):
+    csv_data_cores = [getCsv(data_path,country, cores_path, path[0], path[1]) for path in paths]
+    csv_data_cores = reduce(lambda left, right: pd.merge(left, right, on=['dates'],
+                                                         how='outer'), csv_data_cores)
+
+    csv_data_cores = csv_data_cores.drop('avg_memory', 1)
+    csv_data_cores = csv_data_cores.drop('avg_num_cores', 1)
+    csv_data_cores = csv_data_cores.dropna()
+    data_to_scale_cores = csv_data_cores.drop('dates', 1)
+    normalized_df_cores = (data_to_scale_cores - data_to_scale_cores.min()) / (
+            data_to_scale_cores.max() - data_to_scale_cores.min())
+    normalized_df_cores = normalized_df_cores.merge(
+        right=csv_data_cores['dates'],
+        left_index=True,
+        right_index=True,
+        suffixes=['', '_norm'])
+    fig = px.line(normalized_df_cores, x='dates', y=normalized_df_cores.columns[1:], title=data_path+country+cores_path)
+    # fig = go.Figure(go.Scatter(x=normalized_df_cores['dates'], y=normalized_df_cores[1:],
+    #                            name='Share Prices (in USD)'))
+    #
+    # fig.update_layout(title=data_path+country+cores_path,
+    #                   plot_bgcolor='rgb(230, 230,230)',
+    #                   showlegend=True)
+    return fig
+
+# plot(cores_32_path,1)
+
+# fig1 = plot(paths_server,data_path_servers,country_AM,cores_32_path, 2)
+# fig1.show()
+fig2 = plot(paths_server,data_path_servers,country_AM,cores_40_path, 2)
+fig2.show()
+# fig3 = plot(paths_server,data_path_servers,country_AM,cores_48_path,2)
+# fig3.show()
+# fig4 = plot(paths_server,data_path_servers,country_IL,'48 cores 188.27GB',2)
+# fig4.show()
+# fig5 = plot(paths_server,data_path_servers,country_LA,cores_72_path,2)
+# fig5.show()
+# fig6 = plot(paths_cross_dc,data_path_cross_Dc,country_AM,'', 2)
+# fig6.show()
+#
+#
+# fig4.show()
+# fig5.show()
+# fig6.show()
+
+
+
+
+# # fig4 = plot(paths_cross_dc,data_path_cross_Dc,country_AM,'', 2)
+# fig1 = plot(paths_cross_dc,data_path_cross_Dc,country_AM,cores_32_path, 2)
+# # fig1.show()
+# fig2 = plot(paths_cross_dc,data_path_cross_Dc,country_AM,cores_40_path, 2)
+# trace1 = fig1['data'][0]
+# trace3 = fig1['data'][1]
+# trace2 = fig2['data'][0]
+#
+# fig = make_subplots(rows=2, cols=1, shared_xaxes=False)
+# fig.add_trace(trace1, row=1, col=1)
+# fig.add_trace(trace3, row=1, col=1)
+# fig.add_trace(trace2, row=2, col=1)
+# fig.show()
+# fig3 = plot(paths_cross_dc,data_path_cross_Dc,country_AM,cores_48_path,2)
+# fig = make_subplots(rows=4, cols=1)
+# fig.append_trace(fig1,row=1,col=1)
+# fig.append_trace(fig2,row=2,col=1)
+# fig.append_trace(fig3,row=3,col=1)
+# fig.append_trace(fig4,row=4,col=1)
+# plot(cores_48_path,1)
+# plt.show()
