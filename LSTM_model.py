@@ -126,7 +126,7 @@ def model_settings(number_of_nodes, X_train, Y_train):
                    recurrent_activation='hard_sigmoid'))
     model.add(Dense(1))
     model.compile(loss='mean_squared_error', optimizer='adam', metrics=[metrics.mae])
-    model.fit(X_train, Y_train, epochs=1, batch_size=72, verbose=2)
+    model.fit(X_train, Y_train, epochs=50, batch_size=72, verbose=2)
     return model
 
 
@@ -142,8 +142,7 @@ data_40_cores_scaled, cpu_user_util_csv_reshape_scaled = scale(data_to_scale_40_
 
 # split into test & train
 X_train, X_test, Y_train, Y_test = train_test_split(data_40_cores_scaled, cpu_user_util_csv_reshape_scaled,
-                                                    test_size=0.25)
-
+                                                    test_size=0.25,shuffle=False)
 # shape test & train
 timesteps_to_the_future = 1
 X_train = X_train.reshape((X_train.shape[0], timesteps_to_the_future, X_train.shape[1]))
@@ -153,31 +152,27 @@ number_of_nodes = 50
 lstm_model = model_settings(number_of_nodes, X_train, Y_train)
 predict = lstm_model.predict(X_test)
 
-# plt.figure(2)
-# plt.scatter(Y_test, predict)
-# plt.show(block=False)
-
-
-# Real, = plt.plot(save_dates.values[:Y_test.shape[0]],Y_test)
-# Predict, = plt.plot(save_dates.values[:Y_test.shape[0]],predict)
 
 fig = go.Figure([
     go.Scatter(
         name='Real',
-        x=save_dates.values[Y_test.shape[0]:].reshape(-1),
+        x=save_dates.values[Y_train.shape[0]:].reshape(-1),
         y=Y_test.reshape(-1),
         mode='markers+lines',
         marker=dict(color='red', size=1),
-        showlegend=True
+        showlegend=True,
+        connectgaps=True
+
     ),
     go.Scatter(
         name='Predict',
-        x=save_dates.values[Y_test.shape[0]:].reshape(-1),
+        x=save_dates.values[Y_train.shape[0]:].reshape(-1),
         y=predict.reshape(-1),
         mode='lines',
         marker=dict(color="#444"),
         line=dict(width=1),
-        showlegend=True
+        showlegend=True,
+        connectgaps=True
     )])
 fig.show()
 # Real, = plt.plot(Y_test)
@@ -185,3 +180,11 @@ fig.show()
 # plt.title(country_AM + cores_40_path)
 # plt.legend([Predict, Real], ["Predicted Data - CPU Util", "Real Data - CPU Util "])
 # plt.show()
+
+# plt.figure(2)
+# plt.scatter(Y_test, predict)
+# plt.show(block=False)
+
+
+# Real, = plt.plot(save_dates.values[:Y_test.shape[0]],Y_test)
+# Predict, = plt.plot(save_dates.values[:Y_test.shape[0]],predict)
