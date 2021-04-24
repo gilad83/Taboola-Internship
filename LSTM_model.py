@@ -1,25 +1,13 @@
 import os, glob
 from functools import reduce
-from os import path
-
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from matplotlib.ticker import MultipleLocator
-from matplotlib.ticker import OldAutoLocator
-import matplotlib.ticker as ticker
-from sklearn import preprocessing
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import train_test_split
-
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import LSTM
 from keras import metrics
-
+import argparse
 import plotly.graph_objects as go
-import numpy as np
 
 # single server
 avg_cpu_load = '/avg_cpu_load'
@@ -43,14 +31,14 @@ p99_response_time_Dc = '/trc_requests_timer_p99_weighted_dc'
 reco_rate_Dc = '/recommendation_requests_5m_rate_dc'
 
 paths_cross_dc = [[avg_cpu_load_DC, 'avg_cpu_load'], [avg_heap_DC, 'avg_heap'], [avg_memory_Dc, 'avg_memory']
-    , [avg_num_cores_Dc, 'avg_num_cores'], [max_cpu_load_Dc, 'cpu_user_util'],
-                  [max_cpu_load_Dc, 'max_cpu_load'], [max_heap_Dc, 'max_heap']
-    , [p99_response_time_Dc, 'p99_response_time'], [reco_rate_Dc, 'reco_rate']]
+	, [avg_num_cores_Dc, 'avg_num_cores'], [max_cpu_load_Dc, 'cpu_user_util'],
+				  [max_cpu_load_Dc, 'max_cpu_load'], [max_heap_Dc, 'max_heap']
+	, [p99_response_time_Dc, 'p99_response_time'], [reco_rate_Dc, 'reco_rate']]
 
 paths_server = [[avg_cpu_load, 'avg_cpu_load'], [avg_heap, 'avg_heap'], [avg_memory, 'avg_memory']
-    , [avg_num_cores, 'avg_num_cores'], [cpu_user_util, 'cpu_user_util'],
-                [max_cpu_load, 'max_cpu_load'], [max_heap, 'max_heap']
-    , [p99_response_time, 'p99_response_time'], [reco_rate, 'reco_rate'], [load_score_meter, 'load_score_meter']]
+	, [avg_num_cores, 'avg_num_cores'], [cpu_user_util, 'cpu_user_util'],
+				[max_cpu_load, 'max_cpu_load'], [max_heap, 'max_heap']
+	, [p99_response_time, 'p99_response_time'], [reco_rate, 'reco_rate'], [load_score_meter, 'load_score_meter']]
 
 # Data/Single servers/AM/40 cores 187.35 GB
 data_path_servers = 'Data/Single servers'
@@ -66,115 +54,164 @@ country_LA = '/LA/'
 
 
 def getCsv(data_path, country, core_path, metric_path, name_of_metric):
-    if data_path == data_path_cross_Dc:
-        all_files = glob.glob(os.path.join(data_path + country + metric_path, "*.csv"))
-    else:
-        all_files = glob.glob(os.path.join(data_path + country + core_path + metric_path, "*.csv"))
-    all_csv = (pd.read_csv(f, sep=',') for f in all_files)
-    new_csv = pd.concat(all_csv, ignore_index=True)
-    new_csv.columns = ['dates', name_of_metric]
-    return new_csv
+	if data_path == data_path_cross_Dc:
+		all_files = glob.glob(os.path.join(data_path + country + metric_path, "*.csv"))
+	else:
+		all_files = glob.glob(os.path.join(data_path + country + core_path + metric_path, "*.csv"))
+	all_csv = (pd.read_csv(f, sep=',') for f in all_files)
+	new_csv = pd.concat(all_csv, ignore_index=True)
+	new_csv.columns = ['dates', name_of_metric]
+	return new_csv
 
 
 def getDataSet(paths, data_path, country, cores_path, figure_num):
-    csv_data_cores = [getCsv(data_path, country, cores_path, path[0], path[1]) for path in paths]
-    csv_data_cores = reduce(lambda left, right: pd.merge(left, right, on=['dates'],
-                                                         how='outer'), csv_data_cores)
-    csv_data_cores = csv_data_cores.drop('avg_memory', 1)
-    csv_data_cores = csv_data_cores.drop('avg_num_cores', 1)
-    csv_data_cores = csv_data_cores.dropna()
-    # drop date
-    # csv_data_cores = add_isWeekend_feature(csv_data_cores)
-    # csv_data_cores = add_trend(csv_data_cores)
-    data_to_scale_cores = csv_data_cores.drop('dates', 1)
-    return data_to_scale_cores, csv_data_cores
+	csv_data_cores = [getCsv(data_path, country, cores_path, path[0], path[1]) for path in paths]
+	# gilad - if we keep this line the number of rows is 115,638 which doesn't make sense since 289 lines a day X 89 days = 25,721 rows in total - also after the merge.
+	#csv_data_cores = reduce(lambda left, right: pd.merge(left, right, on=['dates'], how='outer'), csv_data_cores)
+	csv_data_cores = reduce(lambda left, right: merge_and_drop_dups(left, right), csv_data_cores)
+	csv_data_cores.drop(['avg_memory', 'avg_num_cores'], axis='columns', inplace=True)
+	csv_data_cores.dropna(inplace=True)
+	csv_data_cores.drop_duplicates(subset=['dates'], inplace=True)
+	csv_data_cores.set_index('dates', inplace=True)
+	csv_data_cores = csv_data_cores.sort_values(by=['dates'])
+	csv_data_cores.reset_index(inplace=True)
+	#print(len(csv_data_cores))
+	# csv_data_cores = add_isWeekend_feature(csv_data_cores)
+	# csv_data_cores = add_trend(csv_data_cores)
+	# drop date
+	data_to_scale_cores = csv_data_cores.drop('dates', 1)
+	return data_to_scale_cores, csv_data_cores
 
+def merge_and_drop_dups(left, right):
+	left = pd.merge(left, right, on=['dates'], how='inner')
+	left.drop_duplicates(inplace=True)
+	return left
 
 def scale(data_to_scale, predicted_metric):
-    sc = MinMaxScaler()
-    sc.fit(data_to_scale)
-    data_to_scale = sc.fit_transform(data_to_scale)
-    predicted_metric_reshape = predicted_metric.values.reshape(-1, 1)
-    predicted_metric = sc.fit_transform(predicted_metric_reshape)
-    return data_to_scale, predicted_metric
+	sc = MinMaxScaler()
+	sc.fit(data_to_scale)
+	data_to_scale = sc.fit_transform(data_to_scale)
+	predicted_metric_reshape = predicted_metric.values.reshape(-1, 1)
+	predicted_metric = sc.fit_transform(predicted_metric_reshape)
+	return data_to_scale, predicted_metric
 
 
 def add_trend(dataset):
-    feature_names = ["p99_response_time"]
-    i = 0
-    for feature in feature_names:
-        i += 1
-        x = dataset[feature]
-        trend = [b - a for a, b in zip(x[::1], x[1::1])]
-        trend.append(0)
-        dataset["trend_" + feature] = trend
-    return dataset
+	feature_names = ["p99_response_time"]
+	i = 0
+	for feature in feature_names:
+		i += 1
+		x = dataset[feature]
+		trend = [b - a for a, b in zip(x[::1], x[1::1])]
+		trend.append(0)
+		dataset["trend_" + feature] = trend
+	return dataset
 
 
 def add_isWeekend_feature(dataset):
-    dataset['is_weekend'] = dataset['dates'].str.split(' ', expand=True)[0]
-    dataset['is_weekend'] = pd.to_datetime(dataset['is_weekend'], format='%Y-%m-%d')
-    dataset['is_weekend'] = dataset['is_weekend'].dt.dayofweek
-    is_weekend = dataset['is_weekend'].apply(lambda x: 1 if x >= 5.0 else 0)
-    dataset['is_weekend'] = is_weekend
-    return dataset
+	dataset['is_weekend'] = dataset['dates'].str.split(' ', expand=True)[0]
+	dataset['is_weekend'] = pd.to_datetime(dataset['is_weekend'], format='%Y-%m-%d')
+	dataset['is_weekend'] = dataset['is_weekend'].dt.dayofweek
+	is_weekend = dataset['is_weekend'].apply(lambda x: 1 if x >= 5.0 else 0)
+	dataset['is_weekend'] = is_weekend
+	return dataset
 
 
 def model_settings(number_of_nodes, X_train, Y_train):
-    model = Sequential()
-    model.add(LSTM(number_of_nodes, activation='relu', input_shape=(1, X_train.shape[2]),
-                   recurrent_activation='hard_sigmoid'))
-    model.add(Dense(1))
-    model.compile(loss='mean_squared_error', optimizer='adam', metrics=[metrics.mae])
-    model.fit(X_train, Y_train, epochs=50, batch_size=72, verbose=2)
-    return model
+	model = Sequential()
+	model.add(LSTM(number_of_nodes, activation='relu', input_shape=(1, X_train.shape[2]),
+				   recurrent_activation='hard_sigmoid'))
+	model.add(Dense(1))
+	model.compile(loss='mean_squared_error', optimizer='adam', metrics=[metrics.mae, 'accuracy'])
+	model.fit(X_train, Y_train, epochs=20, batch_size=128, verbose=2)
+	return model
 
 
-# get_data with no date, and all data in csv
-data_to_scale_40_cores, csv_data_40_cores = getDataSet(paths_server, data_path_servers, country_AM, cores_40_path, 2)
-# save predicted metric
-cpu_user_util_csv = csv_data_40_cores['cpu_user_util']
-save_dates = csv_data_40_cores['dates']
-
-# data_to_scale_40_cores = data_to_scale_40_cores.drop('cpu_user_util', 1)  # no dates and no cpu util
-# scale data
-data_40_cores_scaled, cpu_user_util_csv_reshape_scaled = scale(data_to_scale_40_cores, cpu_user_util_csv)
-
-# split into test & train
-X_train, X_test, Y_train, Y_test = train_test_split(data_40_cores_scaled, cpu_user_util_csv_reshape_scaled,
-                                                    test_size=0.25,shuffle=False)
-# shape test & train
-timesteps_to_the_future = 1
-X_train = X_train.reshape((X_train.shape[0], timesteps_to_the_future, X_train.shape[1]))
-X_test = X_test.reshape((X_test.shape[0], timesteps_to_the_future, X_test.shape[1]))
-# create the lstm model
-number_of_nodes = 50
-lstm_model = model_settings(number_of_nodes, X_train, Y_train)
-predict = lstm_model.predict(X_test)
+def get_predict_sequences(sequences, n_days, n_data_per_day, dates):
+	# find the end of this pattern
+	start_i_data = len(sequences) - (n_days * n_data_per_day)
+	# gather input and output parts of the pattern
+	seq_data, seq_data_to_predict = sequences[0:start_i_data, :], sequences[start_i_data:, :]
+	predict_data_dates = dates.values[start_i_data:]
+	return seq_data, seq_data_to_predict, predict_data_dates
 
 
-fig = go.Figure([
-    go.Scatter(
-        name='Real',
-        x=save_dates.values[Y_train.shape[0]:].reshape(-1),
-        y=Y_test.reshape(-1),
-        mode='markers+lines',
-        marker=dict(color='red', size=1),
-        showlegend=True,
-        connectgaps=True
+def split_train_test(n_time_steps, values, train_size):
+	values_X, values_y = make_time_steps_data(values, n_time_steps)
+	n_train_hours = int((len(values_X)) * train_size)
+	train_X = values_X[:n_train_hours, :]
+	train_y = values_y[:n_train_hours]
 
-    ),
-    go.Scatter(
-        name='Predict',
-        x=save_dates.values[Y_train.shape[0]:].reshape(-1),
-        y=predict.reshape(-1),
-        mode='lines',
-        marker=dict(color="#444"),
-        line=dict(width=1),
-        showlegend=True,
-        connectgaps=True
-    )])
-fig.show()
+	test_X = values_X[n_train_hours:, :]
+	test_y = values_y[n_train_hours:]
+
+	# reshape input to be 3D [samples, timesteps, features]
+	train_X = train_X.reshape((train_X.shape[0], 1, train_X.shape[1]))
+	test_X = test_X.reshape((test_X.shape[0], 1, test_X.shape[1]))
+
+	return train_X, train_y, test_X, test_y
+
+def make_time_steps_data(values, n_time_steps):
+	# split into input and outputs
+	values_to_train = values[:len(values)-n_time_steps, :-1]
+	values_to_test = values[n_time_steps:, -1]
+	return values_to_train, values_to_test
+
+def main(arguments):
+	# get_data with no date, and all data in csv
+	data_to_scale_40_cores, csv_data_40_cores = getDataSet(paths_server, data_path_servers, country_AM, cores_40_path, 2)
+	# save predicted metric
+	cpu_user_util_csv = csv_data_40_cores['cpu_user_util']
+	save_dates = csv_data_40_cores['dates']
+
+	# data_to_scale_40_cores = data_to_scale_40_cores.drop('cpu_user_util', 1)  # no dates and no cpu util
+	# scale data
+	data_40_cores_scaled, cpu_user_util_csv_reshape_scaled = scale(data_to_scale_40_cores, cpu_user_util_csv)
+
+	# chunks
+	n_days = 89  # in data path
+	n_data_per_day = int(len(data_40_cores_scaled) / n_days)
+	# split the last days to predict
+	data_40_cores_scaled_to_train, data_40_cores_scaled_to_test, predict_data_dates = get_predict_sequences(data_40_cores_scaled, arguments.timesteps_to_the_future, n_data_per_day, save_dates)
+
+	#TODO: Gilad - the cpu user util in our case shold be the Y_train and Y_test
+	cpu_user_util_csv_reshape_scaled_to_train, cpu_user_util_csv_reshape_scaled_to_predict, predict_data_dates = get_predict_sequences(cpu_user_util_csv_reshape_scaled, arguments.timesteps_to_the_future, n_data_per_day, save_dates)
+
+	# split into test & train
+	X_train, Y_train , X_test, Y_test = split_train_test(arguments.timesteps_to_the_future, data_40_cores_scaled_to_train, 0.75)
+
+	# create the lstm model
+	number_of_nodes = 50
+	lstm_model = model_settings(number_of_nodes, X_train, Y_train)
+	predict = lstm_model.predict(X_test)
+
+
+	fig = go.Figure([
+		go.Scatter(
+			name='Real',
+			x=save_dates.values[Y_train.shape[0]:].reshape(-1),
+			y=Y_test.reshape(-1),
+			mode='markers+lines',
+			marker=dict(color='red', size=1),
+			showlegend=True,
+			connectgaps=False
+
+		),
+		go.Scatter(
+			name='Predict',
+			x=save_dates.values[Y_train.shape[0]:].reshape(-1),
+			y=predict.reshape(-1),
+			mode='lines',
+			marker=dict(color="#444"),
+			line=dict(width=1),
+			showlegend=True,
+			connectgaps=False
+		)])
+
+	fig.show()
+	fig.write_image("images/prediction.png")
+	pass
+
 # Real, = plt.plot(Y_test)
 # Predict, = plt.plot(predict)
 # plt.title(country_AM + cores_40_path)
@@ -188,3 +225,11 @@ fig.show()
 
 # Real, = plt.plot(save_dates.values[:Y_test.shape[0]],Y_test)
 # Predict, = plt.plot(save_dates.values[:Y_test.shape[0]],predict)
+
+
+if __name__ == "__main__":
+	parser = argparse.ArgumentParser(description='LSTM supervised')
+	parser.add_argument('--timesteps_to_the_future', dest='timesteps_to_the_future', type=int, required=True, help='timesteps to predict', default=6)
+	args = parser.parse_args()
+	main(args)
+
