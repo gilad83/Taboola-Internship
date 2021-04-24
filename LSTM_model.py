@@ -126,16 +126,6 @@ def model_settings(number_of_nodes, X_train, Y_train):
 	model.fit(X_train, Y_train, epochs=20, batch_size=128, verbose=2)
 	return model
 
-
-def get_predict_sequences(sequences, n_days, n_data_per_day, dates):
-	# find the end of this pattern
-	start_i_data = len(sequences) - (n_days * n_data_per_day)
-	# gather input and output parts of the pattern
-	seq_data, seq_data_to_predict = sequences[0:start_i_data, :], sequences[start_i_data:, :]
-	predict_data_dates = dates.values[start_i_data:]
-	return seq_data, seq_data_to_predict, predict_data_dates
-
-
 def split_train_test(n_time_steps, values, train_size):
 	values_X, values_y = make_time_steps_data(values, n_time_steps)
 	n_train_hours = int((len(values_X)) * train_size)
@@ -168,17 +158,9 @@ def main(arguments):
 	# scale data
 	data_40_cores_scaled, cpu_user_util_csv_reshape_scaled = scale(data_to_scale_40_cores, cpu_user_util_csv)
 
-	# chunks
-	n_days = 89  # in data path
-	n_data_per_day = int(len(data_40_cores_scaled) / n_days)
-	# split the last days to predict
-	data_40_cores_scaled_to_train, data_40_cores_scaled_to_test, predict_data_dates = get_predict_sequences(data_40_cores_scaled, arguments.timesteps_to_the_future, n_data_per_day, save_dates)
-
 	#TODO: Gilad - the cpu user util in our case shold be the Y_train and Y_test
-	cpu_user_util_csv_reshape_scaled_to_train, cpu_user_util_csv_reshape_scaled_to_predict, predict_data_dates = get_predict_sequences(cpu_user_util_csv_reshape_scaled, arguments.timesteps_to_the_future, n_data_per_day, save_dates)
-
 	# split into test & train
-	X_train, Y_train , X_test, Y_test = split_train_test(arguments.timesteps_to_the_future, data_40_cores_scaled_to_train, 0.75)
+	X_train, Y_train , X_test, Y_test = split_train_test(arguments.timesteps_to_the_future, data_40_cores_scaled, 0.75)
 
 	# create the lstm model
 	number_of_nodes = 50
@@ -209,7 +191,6 @@ def main(arguments):
 		)])
 
 	fig.show()
-	fig.write_image("images/prediction.png")
 	pass
 
 # Real, = plt.plot(Y_test)
