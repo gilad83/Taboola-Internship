@@ -36,9 +36,9 @@ paths_cross_dc = [[avg_cpu_load_DC, 'avg_cpu_load'], [avg_heap_DC, 'avg_heap'], 
 	, [p99_response_time_Dc, 'p99_response_time'], [reco_rate_Dc, 'reco_rate']]
 
 paths_server = [[avg_cpu_load, 'avg_cpu_load'], [avg_heap, 'avg_heap'], [avg_memory, 'avg_memory']
-	, [avg_num_cores, 'avg_num_cores'], [cpu_user_util, 'cpu_user_util'],
+	, [avg_num_cores, 'avg_num_cores'],
 				[max_cpu_load, 'max_cpu_load'], [max_heap, 'max_heap']
-	, [p99_response_time, 'p99_response_time'], [reco_rate, 'reco_rate'], [load_score_meter, 'load_score_meter']]
+	, [p99_response_time, 'p99_response_time'], [reco_rate, 'reco_rate'], [load_score_meter, 'load_score_meter'], [cpu_user_util, 'cpu_user_util']]
 
 # Data/Single servers/AM/40 cores 187.35 GB
 data_path_servers = 'Data/Single servers'
@@ -119,8 +119,8 @@ def add_isWeekend_feature(dataset):
 
 def model_settings(number_of_nodes, X_train, Y_train):
 	model = Sequential()
-	model.add(LSTM(number_of_nodes, activation='relu', input_shape=(1, X_train.shape[2]),
-				   recurrent_activation='hard_sigmoid'))
+	num_of_features = X_train.shape[2]
+	model.add(LSTM(number_of_nodes, activation='relu', input_shape=(1, num_of_features),recurrent_activation='hard_sigmoid'))
 	model.add(Dense(1))
 	model.compile(loss='mean_squared_error', optimizer='adam', metrics=[metrics.mae, 'accuracy'])
 	model.fit(X_train, Y_train, epochs=20, batch_size=128, verbose=2)
@@ -128,6 +128,7 @@ def model_settings(number_of_nodes, X_train, Y_train):
 
 def split_train_test(n_time_steps, values, train_size):
 	values_X, values_y = make_time_steps_data(values, n_time_steps)
+
 	n_train_hours = int((len(values_X)) * train_size)
 	train_X = values_X[:n_train_hours, :]
 	train_y = values_y[:n_train_hours]
@@ -142,7 +143,7 @@ def split_train_test(n_time_steps, values, train_size):
 	return train_X, train_y, test_X, test_y
 
 def make_time_steps_data(values, n_time_steps):
-	# split into input and outputs
+	# split into input and outputs - the last column will be the target metric
 	values_to_train = values[:len(values)-n_time_steps, :-1]
 	values_to_test = values[n_time_steps:, -1]
 	return values_to_train, values_to_test
@@ -154,7 +155,6 @@ def main(arguments):
 	cpu_user_util_csv = csv_data_40_cores['cpu_user_util']
 	save_dates = csv_data_40_cores['dates']
 
-	# data_to_scale_40_cores = data_to_scale_40_cores.drop('cpu_user_util', 1)  # no dates and no cpu util
 	# scale data
 	data_40_cores_scaled, cpu_user_util_csv_reshape_scaled = scale(data_to_scale_40_cores, cpu_user_util_csv)
 
