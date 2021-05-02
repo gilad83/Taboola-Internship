@@ -58,24 +58,27 @@ def add_isWeekend_feature(dataset):
 	dataset['is_weekend'] = is_weekend
 	return dataset
 
-def getCsv(data_path, country, core_path, metric_path, name_of_metric):
+def getCsv(data_path, path, metric_path,name_of_metric):
 	if data_path == data_path_cross_Dc:
-		all_files = glob.glob(os.path.join(data_path + country + metric_path, "*.csv"))
+		all_files = glob.glob(os.path.join(path + metric_path, "*.csv"))
 	else:
-		all_files = glob.glob(os.path.join(data_path + country + core_path + metric_path, "*.csv"))
+		all_files = glob.glob(os.path.join(path + metric_path, "*.csv"))
 	all_csv = (pd.read_csv(f, sep=',') for f in all_files)
 	new_csv = pd.concat(all_csv, ignore_index=True)
 	new_csv.columns = ['dates', name_of_metric]
 	return new_csv
 # Data/Single servers/AM/40 cores 187.35 GB
-def get_paths(path):
+def get_paths(path,predict_metric_name):
 	dirlist = [item for item in os.listdir(path) if os.path.isdir(os.path.join(path, item))]
+	a = dirlist.index(predict_metric_name)
+	b = len(dirlist) - 1
+	dirlist[b], dirlist[a] = dirlist[a], dirlist[b] #push the predict_metric_name to the end
 	dirlist = [['/' + item, item] for item in dirlist]
 	return dirlist
 
-def getDataSet(data_path, country, cores_path, figure_num):
-	paths = get_paths(data_path + country + cores_path)
-	csv_data_cores = [getCsv(data_path, country, cores_path, path[0], path[1]) for path in paths]
+def getDataSet(predict_metric_name, path_org,data_path):
+	paths = get_paths(path_org,predict_metric_name)
+	csv_data_cores = [getCsv(data_path, path_org, path[0], path[1]) for path in paths]
 	# gilad - if we keep this line the number of rows is 115,638 which doesn't make sense since 289 lines a day X 89 days = 25,721 rows in total - also after the merge.
 	#csv_data_cores = reduce(lambda left, right: pd.merge(left, right, on=['dates'], how='outer'), csv_data_cores)
 	csv_data_cores = reduce(lambda left, right: merge_and_drop_dups(left, right), csv_data_cores)
@@ -138,7 +141,8 @@ def make_time_steps_data(values, n_time_steps):
 
 def main(arguments):
 	# get_data with no date, and all data in csv
-	data_to_scale_no_dates, csv_data_with_dates = getDataSet(data_path_servers, country_AM, cores_40_path, 2)
+	new_path = data_path_servers + country_AM + cores_40_path
+	data_to_scale_no_dates, csv_data_with_dates = getDataSet(arguments.predict_metric_name,new_path,data_path_servers)
 	# save predicted metric
 	cpu_user_util_csv = csv_data_with_dates['cpu_user_util']
 	save_dates = csv_data_with_dates['dates']
@@ -177,6 +181,12 @@ def main(arguments):
 			showlegend=True,
 			connectgaps=False
 		)])
+	fig.update_layout(
+		title=  new_path + "\n"+ "**predicted metric = "+arguments.predict_metric_name+", time steps = "+str(arguments.timesteps_to_the_future)+"**",
+		xaxis_title="dates",
+		yaxis_title="vals",
+		legend_title="Legend Title",
+		)
 
 	fig.show()
 	pass
@@ -202,6 +212,8 @@ if __name__ == "__main__":
 	parser.add_argument('--batch_size', dest='batch_size', type=int, required=False, help='batch size', default=128)
 	parser.add_argument('--epochs', dest='epochs', type=int, required=False, help='epochs', default=20)
 	parser.add_argument('--number_of_nodes', dest='number_of_nodes', type=int, required=False, help='number of nodes', default=50)
+	parser.add_argument('--predict_metric_name', dest='predict_metric_name', type=str, required=False, help='predict metric name',
+						default='cpu_user_util')
 	args = parser.parse_args()
 	main(args)
 
