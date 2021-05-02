@@ -9,17 +9,6 @@ from keras import metrics
 import argparse
 import plotly.graph_objects as go
 
-# single server
-avg_cpu_load = '/avg_cpu_load'
-avg_heap = '/avg_heap'
-avg_memory = '/avg_memory'
-avg_num_cores = '/avg_num_cores'
-cpu_user_util = '/cpu_user_util'
-max_cpu_load = '/max_cpu_load'
-max_heap = '/max_heap'
-p99_response_time = '/p99_response_time'
-reco_rate = '/reco_rate'
-load_score_meter = '/load_score_meter'
 # cross dc
 avg_cpu_load_DC = '/avg(node_load15{hostname=~_^water._}) by (domain)'
 avg_heap_DC = '/avg_heap'
@@ -35,10 +24,6 @@ paths_cross_dc = [[avg_cpu_load_DC, 'avg_cpu_load'], [avg_heap_DC, 'avg_heap'], 
 				  [max_cpu_load_Dc, 'max_cpu_load'], [max_heap_Dc, 'max_heap']
 	, [p99_response_time_Dc, 'p99_response_time'], [reco_rate_Dc, 'reco_rate']]
 
-paths_server = [[avg_cpu_load, 'avg_cpu_load'], [avg_heap, 'avg_heap'], [avg_memory, 'avg_memory']
-	, [avg_num_cores, 'avg_num_cores'],
-				[max_cpu_load, 'max_cpu_load'], [max_heap, 'max_heap']
-	, [p99_response_time, 'p99_response_time'], [reco_rate, 'reco_rate'], [load_score_meter, 'load_score_meter'], [cpu_user_util, 'cpu_user_util']]
 
 # Data/Single servers/AM/40 cores 187.35 GB
 data_path_servers = 'Data/Single servers'
@@ -51,49 +36,6 @@ cores_40_path_copy = '40 cores 187.35 GB - Copy'
 country_AM = '/AM/'
 country_IL = '/IL/'
 country_LA = '/LA/'
-
-
-def getCsv(data_path, country, core_path, metric_path, name_of_metric):
-	if data_path == data_path_cross_Dc:
-		all_files = glob.glob(os.path.join(data_path + country + metric_path, "*.csv"))
-	else:
-		all_files = glob.glob(os.path.join(data_path + country + core_path + metric_path, "*.csv"))
-	all_csv = (pd.read_csv(f, sep=',') for f in all_files)
-	new_csv = pd.concat(all_csv, ignore_index=True)
-	new_csv.columns = ['dates', name_of_metric]
-	return new_csv
-
-
-def getDataSet(paths, data_path, country, cores_path, figure_num):
-	csv_data_cores = [getCsv(data_path, country, cores_path, path[0], path[1]) for path in paths]
-	# gilad - if we keep this line the number of rows is 115,638 which doesn't make sense since 289 lines a day X 89 days = 25,721 rows in total - also after the merge.
-	#csv_data_cores = reduce(lambda left, right: pd.merge(left, right, on=['dates'], how='outer'), csv_data_cores)
-	csv_data_cores = reduce(lambda left, right: merge_and_drop_dups(left, right), csv_data_cores)
-	csv_data_cores.drop(['avg_memory', 'avg_num_cores'], axis='columns', inplace=True)
-	csv_data_cores.dropna(inplace=True)
-	csv_data_cores.drop_duplicates(subset=['dates'], inplace=True)
-	csv_data_cores.set_index('dates', inplace=True)
-	csv_data_cores = csv_data_cores.sort_values(by=['dates'])
-	csv_data_cores.reset_index(inplace=True)
-	#print(len(csv_data_cores))
-	# csv_data_cores = add_isWeekend_feature(csv_data_cores)
-	# csv_data_cores = add_trend(csv_data_cores)
-	# drop date
-	data_to_scale_cores = csv_data_cores.drop('dates', 1)
-	return data_to_scale_cores, csv_data_cores
-
-def merge_and_drop_dups(left, right):
-	left = pd.merge(left, right, on=['dates'], how='inner')
-	left.drop_duplicates(inplace=True)
-	return left
-
-def scale(data_to_scale, predicted_metric):
-	sc = MinMaxScaler()
-	sc.fit(data_to_scale)
-	data_to_scale = sc.fit_transform(data_to_scale)
-	predicted_metric_reshape = predicted_metric.values.reshape(-1, 1)
-	predicted_metric = sc.fit_transform(predicted_metric_reshape)
-	return data_to_scale, predicted_metric
 
 
 def add_trend(dataset):
@@ -116,14 +58,60 @@ def add_isWeekend_feature(dataset):
 	dataset['is_weekend'] = is_weekend
 	return dataset
 
+def getCsv(data_path, country, core_path, metric_path, name_of_metric):
+	if data_path == data_path_cross_Dc:
+		all_files = glob.glob(os.path.join(data_path + country + metric_path, "*.csv"))
+	else:
+		all_files = glob.glob(os.path.join(data_path + country + core_path + metric_path, "*.csv"))
+	all_csv = (pd.read_csv(f, sep=',') for f in all_files)
+	new_csv = pd.concat(all_csv, ignore_index=True)
+	new_csv.columns = ['dates', name_of_metric]
+	return new_csv
+# Data/Single servers/AM/40 cores 187.35 GB
+def get_paths(path):
+	dirlist = [item for item in os.listdir(path) if os.path.isdir(os.path.join(path, item))]
+	dirlist = [['/' + item, item] for item in dirlist]
+	return dirlist
 
-def model_settings(number_of_nodes, X_train, Y_train):
+def getDataSet(data_path, country, cores_path, figure_num):
+	paths = get_paths(data_path + country + cores_path)
+	csv_data_cores = [getCsv(data_path, country, cores_path, path[0], path[1]) for path in paths]
+	# gilad - if we keep this line the number of rows is 115,638 which doesn't make sense since 289 lines a day X 89 days = 25,721 rows in total - also after the merge.
+	#csv_data_cores = reduce(lambda left, right: pd.merge(left, right, on=['dates'], how='outer'), csv_data_cores)
+	csv_data_cores = reduce(lambda left, right: merge_and_drop_dups(left, right), csv_data_cores)
+	csv_data_cores.drop(['avg_memory', 'avg_num_cores'], axis='columns', inplace=True)
+	csv_data_cores.dropna(inplace=True)
+	csv_data_cores.drop_duplicates(subset=['dates'], inplace=True)
+	csv_data_cores.set_index('dates', inplace=True)
+	csv_data_cores = csv_data_cores.sort_values(by=['dates'])
+	csv_data_cores.reset_index(inplace=True)
+	#print(len(csv_data_cores))
+	# csv_data_cores = add_isWeekend_feature(csv_data_cores)
+	# csv_data_cores = add_trend(csv_data_cores)
+	# drop date
+	data_witout_dates = csv_data_cores.drop('dates', 1)
+	return data_witout_dates, csv_data_cores
+
+def merge_and_drop_dups(left, right):
+	left = pd.merge(left, right, on=['dates'], how='inner')
+	left.drop_duplicates(inplace=True)
+	return left
+
+def scale(data_to_scale, predicted_metric):
+	sc = MinMaxScaler()
+	sc.fit(data_to_scale)
+	data_to_scale = sc.fit_transform(data_to_scale)
+	predicted_metric_reshape = predicted_metric.values.reshape(-1, 1)
+	predicted_metric = sc.fit_transform(predicted_metric_reshape)
+	return data_to_scale, predicted_metric
+
+def model_settings(X_train, Y_train,arguments):
 	model = Sequential()
 	num_of_features = X_train.shape[2]
-	model.add(LSTM(number_of_nodes, activation='relu', input_shape=(1, num_of_features),recurrent_activation='hard_sigmoid'))
+	model.add(LSTM(arguments.number_of_nodes, activation='relu', input_shape=(1, num_of_features),recurrent_activation='hard_sigmoid'))
 	model.add(Dense(1))
 	model.compile(loss='mean_squared_error', optimizer='adam', metrics=[metrics.mae, 'accuracy'])
-	model.fit(X_train, Y_train, epochs=20, batch_size=128, verbose=2)
+	model.fit(X_train, Y_train, epochs=arguments.epochs, batch_size=arguments.batch_size, verbose=2)
 	return model
 
 def split_train_test(n_time_steps, values, train_size):
@@ -150,21 +138,21 @@ def make_time_steps_data(values, n_time_steps):
 
 def main(arguments):
 	# get_data with no date, and all data in csv
-	data_to_scale_40_cores, csv_data_40_cores = getDataSet(paths_server, data_path_servers, country_AM, cores_40_path, 2)
+	data_to_scale_no_dates, csv_data_with_dates = getDataSet(data_path_servers, country_AM, cores_40_path, 2)
 	# save predicted metric
-	cpu_user_util_csv = csv_data_40_cores['cpu_user_util']
-	save_dates = csv_data_40_cores['dates']
+	cpu_user_util_csv = csv_data_with_dates['cpu_user_util']
+	save_dates = csv_data_with_dates['dates']
 
 	# scale data
-	data_40_cores_scaled, cpu_user_util_csv_reshape_scaled = scale(data_to_scale_40_cores, cpu_user_util_csv)
+	data_scaled_no_dates, cpu_user_util_csv_reshape_scaled = scale(data_to_scale_no_dates, cpu_user_util_csv)
 
 	#TODO: Gilad - the cpu user util in our case shold be the Y_train and Y_test
 	# split into test & train
-	X_train, Y_train , X_test, Y_test = split_train_test(arguments.timesteps_to_the_future, data_40_cores_scaled, 0.75)
+	X_train, Y_train , X_test, Y_test = split_train_test(arguments.timesteps_to_the_future, data_scaled_no_dates, 0.75)
+
 
 	# create the lstm model
-	number_of_nodes = 50
-	lstm_model = model_settings(number_of_nodes, X_train, Y_train)
+	lstm_model = model_settings(X_train, Y_train,arguments)
 	predict = lstm_model.predict(X_test)
 
 
@@ -210,7 +198,10 @@ def main(arguments):
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='LSTM supervised')
-	parser.add_argument('--timesteps_to_the_future', dest='timesteps_to_the_future', type=int, required=True, help='timesteps to predict', default=6)
+	parser.add_argument('--timesteps_to_the_future', dest='timesteps_to_the_future', type=int, required=True, help='timesteps to predict', default=288)
+	parser.add_argument('--batch_size', dest='batch_size', type=int, required=False, help='batch size', default=128)
+	parser.add_argument('--epochs', dest='epochs', type=int, required=False, help='epochs', default=20)
+	parser.add_argument('--number_of_nodes', dest='number_of_nodes', type=int, required=False, help='number of nodes', default=50)
 	args = parser.parse_args()
 	main(args)
 

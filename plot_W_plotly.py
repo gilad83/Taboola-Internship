@@ -82,16 +82,28 @@ def getCsv(data_path,country, core_path, metric_path, name_of_metric):
     return new_csv
 
 
-# def plotting():
 
-def plot(paths,data_path,country,cores_path, figure_num):
-    csv_data_cores = [getCsv(data_path,country, cores_path, path[0], path[1]) for path in paths]
-    csv_data_cores = reduce(lambda left, right: pd.merge(left, right, on=['dates'],
-                                                         how='outer'), csv_data_cores)
+def get_paths(path):
+	dirlist = [item for item in os.listdir(path) if os.path.isdir(os.path.join(path, item))]
+	dirlist = [['/' + item, item] for item in dirlist]
+	return dirlist
 
-    csv_data_cores = csv_data_cores.drop('avg_memory', 1)
-    csv_data_cores = csv_data_cores.drop('avg_num_cores', 1)
-    csv_data_cores = csv_data_cores.dropna()
+def merge_and_drop_dups(left, right):
+	left = pd.merge(left, right, on=['dates'], how='inner')
+	left.drop_duplicates(inplace=True)
+	return left
+
+
+def plot(data_path,country,cores_path, figure_num):
+    paths = get_paths(data_path + country + cores_path)
+    csv_data_cores = [getCsv(data_path, country, cores_path, path[0], path[1]) for path in paths]
+    csv_data_cores = reduce(lambda left, right: merge_and_drop_dups(left, right), csv_data_cores)
+    csv_data_cores.drop(['avg_memory', 'avg_num_cores'], axis='columns', inplace=True)
+    csv_data_cores.dropna(inplace=True)
+    csv_data_cores.drop_duplicates(subset=['dates'], inplace=True)
+    csv_data_cores.set_index('dates', inplace=True)
+    csv_data_cores = csv_data_cores.sort_values(by=['dates'])
+    csv_data_cores.reset_index(inplace=True)
     data_to_scale_cores = csv_data_cores.drop('dates', 1)
     normalized_df_cores = (data_to_scale_cores - data_to_scale_cores.min()) / (
             data_to_scale_cores.max() - data_to_scale_cores.min())
@@ -113,7 +125,7 @@ def plot(paths,data_path,country,cores_path, figure_num):
 
 # fig1 = plot(paths_server,data_path_servers,country_AM,cores_32_path, 2)
 # fig1.show()
-fig2 = plot(paths_server,data_path_servers,country_AM,cores_40_path, 2)
+fig2 = plot(data_path_servers,country_AM,cores_40_path, 2)
 fig2.show()
 # fig3 = plot(paths_server,data_path_servers,country_AM,cores_48_path,2)
 # fig3.show()
