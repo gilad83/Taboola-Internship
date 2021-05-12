@@ -208,7 +208,7 @@ def main(arguments):
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='LSTM supervised')
-	parser.add_argument('--timesteps_to_the_future', dest='timesteps_to_the_future', type=int, required=True, help='timesteps to predict', default=288)
+	parser.add_argument('--timesteps_to_the_future', dest='timesteps_to_the_future', type=int, required=True, help='timesteps to predict', default=6)
 	parser.add_argument('--batch_size', dest='batch_size', type=int, required=False, help='batch size', default=128)
 	parser.add_argument('--epochs', dest='epochs', type=int, required=False, help='epochs', default=20)
 	parser.add_argument('--number_of_nodes', dest='number_of_nodes', type=int, required=False, help='number of nodes', default=50)
