@@ -132,7 +132,8 @@ new_path = data_path_servers + country_AM + cores_40_path
 data_to_scale_no_dates, csv_data_with_dates = getDataSet('cpu_user_util',new_path,data_path_servers)
 cpu_user_util_csv = csv_data_with_dates['cpu_user_util']
 data_scaled_no_dates = (data_to_scale_no_dates-data_to_scale_no_dates.min())/(data_to_scale_no_dates.max()-data_to_scale_no_dates.min())
-multiply_data = add_multiply(data_scaled_no_dates)
+# multiply_data = add_multiply(data_scaled_no_dates)
+multiply_data = add_multiply(data_to_scale_no_dates)
 
 # f, ax = plt.subplots(figsize=(36, 36))
 correlated_features = set()
@@ -151,6 +152,10 @@ for i in correlation_matrix['cpu_user_util']:
     j = j + 1
 
 
+# use this handy way to swap the elements
+
+
+# assign back, the order will now be swapped
 correlation_matrix.drop(labels=correlated_features, axis=1, inplace=True)
 correlation_matrix.drop(labels=correlated_features, inplace=True)
 g1 = sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm')

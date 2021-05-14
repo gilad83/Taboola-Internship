@@ -1,28 +1,11 @@
 import os, glob
 import time
 from functools import reduce
-from os import path
 
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from matplotlib.ticker import MultipleLocator
-from matplotlib.ticker import OldAutoLocator
-import matplotlib.ticker as ticker
-from sklearn import preprocessing
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import train_test_split
-
-from keras.models import Sequential
-from keras.layers import Dense
-from keras.layers import LSTM
-from keras import metrics
 
 import pandas as pd
 import plotly.express as px
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
+
 
 #single server
 avg_cpu_load = '/avg_cpu_load'
