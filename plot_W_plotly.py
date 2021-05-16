@@ -54,16 +54,30 @@ country_AM = '/AM/'
 country_IL = '/IL/'
 country_LA = '/LA/'
 
+
+day = True # day graph or 5min graph
+
 def getCsv(data_path,country, core_path, metric_path, name_of_metric):
     if (data_path == data_path_cross_Dc):
         all_files = glob.glob(os.path.join(data_path + country + metric_path, "*.csv"))
     else:
         all_files = glob.glob(os.path.join(data_path + country + core_path + metric_path, "*.csv"))
-    all_csv = (pd.read_csv(f, sep=',') for f in all_files)
+    all_csv = (avg5minToDay(f) for f in all_files)
     new_csv = pd.concat(all_csv, ignore_index=True)
     new_csv.columns = ['dates', name_of_metric]
     return new_csv
 
+def avg5minToDay(f):
+    dateLength = 10
+    df = pd.read_csv(f, sep=',')
+    date = df['ds'][0]
+    date = date[:dateLength]
+    mean = df['y'].mean()
+    mead_df = pd.DataFrame({'ds':[date],'y':[mean]})
+    if (day):
+        return mead_df
+    else:
+        return df
 
 
 def get_paths(path):

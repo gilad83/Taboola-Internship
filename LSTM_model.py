@@ -85,15 +85,27 @@ def add_isWeekend_feature(dataset):
     return dataset
 
 
-def getCsv(data_path, path, metric_path, name_of_metric):
+def getCsv(data_path, path, metric_path, name_of_metric,day):
     if data_path == data_path_cross_Dc:
         all_files = glob.glob(os.path.join(path + metric_path, "*.csv"))
     else:
         all_files = glob.glob(os.path.join(path + metric_path, "*.csv"))
-    all_csv = (pd.read_csv(f, sep=',') for f in all_files)
+    all_csv = (avg5minToDay(f,day) for f in all_files)
     new_csv = pd.concat(all_csv, ignore_index=True)
     new_csv.columns = ['dates', name_of_metric]
     return new_csv
+
+def avg5minToDay(f,day):
+    dateLength = 10
+    df = pd.read_csv(f, sep=',')
+    date = df['ds'][0]
+    date = date[:dateLength]
+    mean = df['y'].mean()
+    mead_df = pd.DataFrame({'ds':[date],'y':[mean]})
+    if (day):
+        return mead_df
+    else:
+        return df
 
 
 # reading metrics and pushing the predicted metric to the end
@@ -106,11 +118,9 @@ def get_paths(path, predict_metric_name):
     return dirlist
 
 
-def getDataSet(predict_metric_name, path_org, data_path):
+def getDataSet(predict_metric_name, path_org, data_path,day):
     paths = get_paths(path_org, predict_metric_name)
-    csv_data_cores = [getCsv(data_path, path_org, path[0], path[1]) for path in paths]
-    # gilad - if we keep this line the number of rows is 115,638 which doesn't make sense since 289 lines a day X 89 days = 25,721 rows in total - also after the merge.
-    # csv_data_cores = reduce(lambda left, right: pd.merge(left, right, on=['dates'], how='outer'), csv_data_cores)
+    csv_data_cores = [getCsv(data_path, path_org, path[0], path[1],day) for path in paths]
     csv_data_cores = reduce(lambda left, right: merge_and_drop_dups(left, right), csv_data_cores)
     csv_data_cores.drop(['avg_memory', 'avg_num_cores'], axis='columns', inplace=True)
     csv_data_cores.dropna(inplace=True)
@@ -179,7 +189,7 @@ def make_time_steps_data(values, n_time_steps):
 def main(arguments):
     # get_data with no date, and all data in csv
     new_path = data_path_servers + country_AM + cores_40_path
-    data_to_scale_no_dates, csv_data_with_dates = getDataSet(arguments.predict_metric_name, new_path, data_path_servers)
+    data_to_scale_no_dates, csv_data_with_dates = getDataSet(arguments.predict_metric_name, new_path, data_path_servers,arguments.day)
     # save predicted metric
     cpu_user_util_csv = csv_data_with_dates['cpu_user_util']
     save_dates = csv_data_with_dates['dates']
@@ -200,7 +210,6 @@ def main(arguments):
 
     data_scaled_no_dates = data_to_scale_no_dates.to_numpy()
 
-    # TODO: Gilad - the cpu user util in our case shold be the Y_train and Y_test
     # split into test & train
     X_train, Y_train, X_test, Y_test = split_train_test(arguments.timesteps_to_the_future, data_scaled_no_dates, 0.75)
 
@@ -261,8 +270,8 @@ def main(arguments):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='LSTM supervised')
     parser.add_argument('--timesteps_to_the_future', dest='timesteps_to_the_future', type=int, required=False,
-                        help='timesteps to predict', default=288)
-    parser.add_argument('--batch_size', dest='batch_size', type=int, required=False, help='batch size', default=128)
+                        help='timesteps to predict', default=1)
+    parser.add_argument('--batch_size', dest='batch_size', type=int, required=False, help='batch size', default=1)
     parser.add_argument('--epochs', dest='epochs', type=int, required=False, help='epochs', default=20)
     parser.add_argument('--number_of_nodes', dest='number_of_nodes', type=int, required=False, help='number of nodes',
                         default=50)
@@ -275,5 +284,8 @@ if __name__ == "__main__":
     parser.add_argument('--threshold', dest='threshold', type=int, required=False,
                         help='threshold for cartesian multiplication corr with predicted metric ',
                         default=0.8)
+    parser.add_argument('--day', dest='day', type=bool, required=False,
+                        help='change metrics to day  resolution instead 5min resolution  ',
+                        default=True)
     args = parser.parse_args()
     main(args)
