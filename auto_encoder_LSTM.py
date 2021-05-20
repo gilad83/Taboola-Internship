@@ -3,8 +3,7 @@ from functools import reduce
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
-from keras.layers import Dense
-from keras.layers import LSTM
+from keras.layers import LSTM, Dense, Dropout, RepeatVector, TimeDistributed, Activation
 from keras import metrics
 import argparse
 import plotly.graph_objects as go
@@ -156,10 +155,14 @@ def rmse(y_true, y_pred):
 
 def model_settings(X_train, Y_train, arguments):
     model = Sequential()
-    num_of_features = X_train.shape[2]
-    model.add(LSTM(arguments.number_of_nodes, activation='relu', input_shape=(1, num_of_features),
-                   recurrent_activation='hard_sigmoid'))
-    model.add(Dense(1))
+    model.add(LSTM(units=128, input_shape=(X_train.shape[1], X_train.shape[2])))
+    model.add(Dropout(rate=0.2))
+    model.add(RepeatVector(n=X_train.shape[1]))
+    model.add(LSTM(units=128, return_sequences=True))
+    model.add(Dropout(rate=0.2))
+    model.add(TimeDistributed(Dense(X_train.shape[2])))
+    # model.add(Activation('relu'))
+    # model.compile(optimizer='adam', loss='mse')
     # model.compile(loss='mean_squared_error', optimizer='adam', metrics=[metrics.mae, 'accuracy'])
     model.compile(loss=rmse, optimizer='adam', metrics=[metrics.mae])
     model.fit(X_train, Y_train, epochs=arguments.epochs, batch_size=arguments.batch_size, verbose=2)
@@ -274,8 +277,8 @@ def main(arguments):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='LSTM supervised')
     parser.add_argument('--timesteps_to_the_future', dest='timesteps_to_the_future', type=int, required=False,
-                        help='timesteps to predict', default=(288*2))
-    parser.add_argument('--batch_size', dest='batch_size', type=int, required=False, help='batch size', default=128)
+                        help='timesteps to predict', default=7)
+    parser.add_argument('--batch_size', dest='batch_size', type=int, required=False, help='batch size', default=1)
     parser.add_argument('--epochs', dest='epochs', type=int, required=False, help='epochs', default=30)
     parser.add_argument('--number_of_nodes', dest='number_of_nodes', type=int, required=False, help='number of nodes',
                         default=50)

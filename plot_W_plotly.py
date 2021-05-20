@@ -8,6 +8,8 @@ import plotly.express as px
 
 
 #single server
+from sklearn.preprocessing import MinMaxScaler
+
 avg_cpu_load = '/avg_cpu_load'
 avg_heap = '/avg_heap'
 avg_memory = '/avg_memory'
@@ -102,9 +104,14 @@ def plot(data_path,country,cores_path, figure_num):
     csv_data_cores = csv_data_cores.sort_values(by=['dates'])
     csv_data_cores.reset_index(inplace=True)
     data_to_scale_cores = csv_data_cores.drop('dates', 1)
-    normalized_df_cores = (data_to_scale_cores - data_to_scale_cores.min()) / (
-            data_to_scale_cores.max() - data_to_scale_cores.min())
-    normalized_df_cores = normalized_df_cores.merge(
+    lst_of_features = list(data_to_scale_cores)
+    scaler = MinMaxScaler()
+    scaler.fit(data_to_scale_cores)
+    data_to_scale_cores[lst_of_features] = scaler.fit_transform(data_to_scale_cores[lst_of_features])
+
+    # normalized_df_cores = (data_to_scale_cores - data_to_scale_cores.min()) / (
+    #         data_to_scale_cores.max() - data_to_scale_cores.min())
+    normalized_df_cores = data_to_scale_cores.merge(
         right=csv_data_cores['dates'],
         left_index=True,
         right_index=True,
