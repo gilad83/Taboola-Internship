@@ -57,7 +57,7 @@ country_IL = '/IL/'
 country_LA = '/LA/'
 
 
-day = True # day graph or 5min graph
+day = False # day graph or 5min graph
 
 def getCsv(data_path,country, core_path, metric_path, name_of_metric):
     if (data_path == data_path_cross_Dc):
@@ -74,7 +74,8 @@ def avg5minToDay(f):
     df = pd.read_csv(f, sep=',')
     date = df['ds'][0]
     date = date[:dateLength]
-    mean = df['y'].mean()
+    # mean = df['y'].mean()
+    mean = df['y'].quantile(0.99)
     mead_df = pd.DataFrame({'ds':[date],'y':[mean]})
     if (day):
         return mead_df

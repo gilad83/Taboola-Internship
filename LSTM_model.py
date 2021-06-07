@@ -9,6 +9,7 @@ from keras import metrics
 import argparse
 import plotly.graph_objects as go
 from keras import backend
+import numpy as np
 
 # cross dc
 avg_cpu_load_DC = '/avg(node_load15{hostname=~_^water._}) by (domain)'
@@ -97,14 +98,26 @@ def getCsv(data_path, path, metric_path, name_of_metric,day):
 
 def avg5minToDay(f,day):
     dateLength = 10
+    date_and_time = 19
     df = pd.read_csv(f, sep=',')
     date = df['ds'][0]
     date = date[:dateLength]
-    mean = df['y'].mean()
+    # mean = df['y'].mean()
+    mean = df['y'].quantile(0.99)
     mead_df = pd.DataFrame({'ds':[date],'y':[mean]})
-    if (day):
+    if (day > 1):
+        num_of_points = len(df['ds'])
+        value_of_points = []
+        dates_of_points = []
+        for i in range(day):
+            value_of_points.append(float(df['y'][(num_of_points // day)* i]))
+            dates_of_points.append(df['ds'][(num_of_points // day) * i])
+        points_df = pd.DataFrame({'ds': dates_of_points, 'y': value_of_points})
+        # points_df['y'] = points_df['y'].str.replace('%', '').astype(np.float64)
+        return points_df
+    if (day == -1):
         return mead_df
-    else:
+    if (day == 0):
         return df
 
 
@@ -122,7 +135,11 @@ def getDataSet(predict_metric_name, path_org, data_path,day):
     paths = get_paths(path_org, predict_metric_name)
     csv_data_cores = [getCsv(data_path, path_org, path[0], path[1],day) for path in paths]
     csv_data_cores = reduce(lambda left, right: merge_and_drop_dups(left, right), csv_data_cores)
-    csv_data_cores.drop(['avg_memory', 'avg_num_cores'], axis='columns', inplace=True)
+    none_tech_metrics = ['avg_memory', 'avg_num_cores','load_score_meter','max_heap'
+                         ,'disk_space','avg_cpu_load','qps','p99_response_time']
+    # none_tech_metrics = ['avg_memory', 'avg_num_cores','reco_rate','load_score_meter','avg_heap'
+                         # ,'disk_space','avg_cpu_load','gc_time','disk_space','max_cpu_load','qps','p99_response_time']
+    csv_data_cores.drop(none_tech_metrics, axis='columns', inplace=True)
     csv_data_cores.dropna(inplace=True)
     csv_data_cores.drop_duplicates(subset=['dates'], inplace=True)
     csv_data_cores.set_index('dates', inplace=True)
@@ -215,11 +232,13 @@ def main(arguments):
     data_scaled_no_dates = data_to_scale_no_dates.to_numpy()
 
     # split into test & train
-    X_train, Y_train, X_test, Y_test = split_train_test(arguments.timesteps_to_the_future, data_scaled_no_dates, 0.75)
+    X_train, Y_train, X_test, Y_test = split_train_test(arguments.timesteps_to_the_future, data_scaled_no_dates, 0.80)
 
     # create the lstm model
     lstm_model = model_settings(X_train, Y_train, arguments)
     predict = lstm_model.predict(X_test)
+
+
 
     fig = go.Figure([
         go.Scatter(
@@ -233,7 +252,7 @@ def main(arguments):
 
         ),
         go.Scatter(
-            name='Predict',
+            name='Predict - test',
             x=save_dates.values[Y_train.shape[0]:].reshape(-1),
             y=predict.reshape(-1),
             mode='lines',
@@ -241,12 +260,14 @@ def main(arguments):
             line=dict(width=1),
             showlegend=True,
             connectgaps=False
-        )])
+        )
+    ])
     fig.update_layout(
         title=new_path + "\n" + "**predicted metric = " + arguments.predict_metric_name +
               ",multiply= " + str(arguments.cartesian_multiplication) + ",threshold= " + str(
-            arguments.threshold) + " ,epohcs = " + str(arguments.epochs) + ", time steps = " + str(
-            arguments.timesteps_to_the_future) + "**",
+            arguments.threshold) + " ,epohcs = " + str(arguments.epochs) +" epochs = "+ str(arguments.epochs) +" batch_size = "+ str(arguments.batch_size) +
+              " day_res = " + str(arguments.day)+ ",!!! time steps = " + str(
+            arguments.timesteps_to_the_future)+"!!! **",
         xaxis_title="dates",
         yaxis_title="vals",
         legend_title="Legend Title",
@@ -274,9 +295,9 @@ def main(arguments):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='LSTM supervised')
     parser.add_argument('--timesteps_to_the_future', dest='timesteps_to_the_future', type=int, required=False,
-                        help='timesteps to predict', default=(288*2))
-    parser.add_argument('--batch_size', dest='batch_size', type=int, required=False, help='batch size', default=128)
-    parser.add_argument('--epochs', dest='epochs', type=int, required=False, help='epochs', default=30)
+                        help='timesteps to predict', default=2)
+    parser.add_argument('--batch_size', dest='batch_size', type=int, required=False, help='batch size', default=4)
+    parser.add_argument('--epochs', dest='epochs', type=int, required=False, help='epochs', default=25)
     parser.add_argument('--number_of_nodes', dest='number_of_nodes', type=int, required=False, help='number of nodes',
                         default=50)
     parser.add_argument('--predict_metric_name', dest='predict_metric_name', type=str, required=False,
@@ -284,12 +305,12 @@ if __name__ == "__main__":
                         default='cpu_user_util')
     parser.add_argument('--cartesian_multiplication', dest='cartesian_multiplication', type=bool, required=False,
                         help='cartesian multiplication flag',
-                        default=True)
+                        default=False)
     parser.add_argument('--threshold', dest='threshold', type=int, required=False,
                         help='threshold for cartesian multiplication corr with predicted metric ',
-                        default=0.8)
-    parser.add_argument('--day', dest='day', type=bool, required=False,
-                        help='change metrics to day  resolution instead of 5min resolution  ',
-                        default=False)
+                        default=0.9)
+    parser.add_argument('--day', dest='day', type=int, required=False,
+                        help='-1  == p99, 0 == 5min, day > 1 == num of points  ',
+                        default=4)
     args = parser.parse_args()
     main(args)
