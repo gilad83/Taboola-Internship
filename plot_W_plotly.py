@@ -57,7 +57,7 @@ country_IL = '/IL/'
 country_LA = '/LA/'
 
 
-day = False # day graph or 5min graph
+
 
 def getCsv(data_path,country, core_path, metric_path, name_of_metric):
     if (data_path == data_path_cross_Dc):
@@ -70,16 +70,27 @@ def getCsv(data_path,country, core_path, metric_path, name_of_metric):
     return new_csv
 
 def avg5minToDay(f):
+    day = 0  # day graph or 5min graph
     dateLength = 10
     df = pd.read_csv(f, sep=',')
     date = df['ds'][0]
     date = date[:dateLength]
-    # mean = df['y'].mean()
-    mean = df['y'].quantile(0.99)
+    mean = df['y'].mean()
+    # mean = df['y'].quantile(0.99)
     mead_df = pd.DataFrame({'ds':[date],'y':[mean]})
-    if (day):
+    if (day > 1):
+        num_of_points = len(df['ds'])
+        value_of_points = []
+        dates_of_points = []
+        for i in range(day):
+            value_of_points.append(float(df['y'][(num_of_points // day)* i]))
+            dates_of_points.append(df['ds'][(num_of_points // day) * i])
+        points_df = pd.DataFrame({'ds': dates_of_points, 'y': value_of_points})
+        # points_df['y'] = points_df['y'].str.replace('%', '').astype(np.float64)
+        return points_df
+    if (day == -1):
         return mead_df
-    else:
+    if (day == 0):
         return df
 
 
@@ -132,6 +143,13 @@ def plot(data_path,country,cores_path, figure_num):
 # fig1.show()
 fig2 = plot(data_path_servers,country_AM,cores_40_path, 2)
 fig2.show()
+
+# country_US = '/US/'
+# fig2 = plot(data_path_servers,country_US,'32 cores 125.64 GB', 2)
+# fig2.show()
+
+
+
 # fig3 = plot(paths_server,data_path_servers,country_AM,cores_48_path,2)
 # fig3.show()
 # fig4 = plot(paths_server,data_path_servers,country_IL,'48 cores 188.27GB',2)

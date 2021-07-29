@@ -30,6 +30,7 @@ paths_cross_dc = [[avg_cpu_load_DC, 'avg_cpu_load'], [avg_heap_DC, 'avg_heap'], 
 data_path_servers = 'Data/Single servers'
 data_path_cross_Dc = 'Data/Cross DC'
 cores_32_path = '32 cores 125.6 GB'
+cores_32_path = '32 cores 125.64 GB'
 cores_40_path = '40 cores 187.35 GB'
 cores_48_path = '48 cores 187.19 GB'
 cores_72_path = '72 cores 251.63GB'
@@ -37,7 +38,7 @@ cores_40_path_copy = '40 cores 187.35 GB - Copy'
 country_AM = '/AM/'
 country_IL = '/IL/'
 country_LA = '/LA/'
-
+country_US = '/US/'
 
 # gets dataframe with no dates and predicted matric name
 # returns cartesian multiplication of metrics
@@ -136,7 +137,7 @@ def getDataSet(predict_metric_name, path_org, data_path,day):
     csv_data_cores = [getCsv(data_path, path_org, path[0], path[1],day) for path in paths]
     csv_data_cores = reduce(lambda left, right: merge_and_drop_dups(left, right), csv_data_cores)
     none_tech_metrics = ['avg_memory', 'avg_num_cores','load_score_meter','max_heap'
-                         ,'disk_space','avg_cpu_load','qps','p99_response_time']
+                         ,'disk_space','avg_cpu_load']
     # none_tech_metrics = ['avg_memory', 'avg_num_cores','reco_rate','load_score_meter','avg_heap'
                          # ,'disk_space','avg_cpu_load','gc_time','disk_space','max_cpu_load','qps','p99_response_time']
     csv_data_cores.drop(none_tech_metrics, axis='columns', inplace=True)
@@ -207,18 +208,43 @@ def make_time_steps_data(values, n_time_steps):
     return values_to_train, values_to_test
 
 
+
+
+
+
+def add_moving_avg(data_set,arguments):
+    feature_names1 = data_set.columns
+    time_res = 288
+    for feature in feature_names1:
+        data_set[feature+"_p75"] = data_set[feature].rolling(window=time_res * 21 ).quantile(0.75)
+        data_set[feature + "_p75"] = data_set[feature].rolling(window=time_res * 14).quantile(0.75)
+        data_set[feature + "_p75"] = data_set[feature].rolling(window=time_res * 7).quantile(0.75)
+    data_set.dropna(inplace=True)
+    return data_set
+
+
+
+
 def main(arguments):
     # get_data with no date, and all data in csv
-    new_path = data_path_servers + country_AM + cores_40_path
+    # new_path = data_path_servers + country_AM + cores_40_path
+    new_path = data_path_servers + country_US + cores_32_path
     data_to_scale_no_dates, csv_data_with_dates = getDataSet(arguments.predict_metric_name, new_path, data_path_servers,arguments.day)
     # save predicted metric
     cpu_user_util_csv = csv_data_with_dates['cpu_user_util']
     save_dates = csv_data_with_dates['dates']
+    data_to_scale_no_dates = add_moving_avg(data_to_scale_no_dates, arguments)
+
     # scale data
     lst_of_features = list(data_to_scale_no_dates)
     scaler = MinMaxScaler()
     scaler.fit(data_to_scale_no_dates)
     data_to_scale_no_dates[lst_of_features] = scaler.fit_transform(data_to_scale_no_dates[lst_of_features])
+    col_list = list(data_to_scale_no_dates)
+    last_element = len(col_list) - 1
+    col_list[data_to_scale_no_dates.columns.get_loc(arguments.predict_metric_name)], col_list[last_element] = \
+        col_list[last_element], col_list[data_to_scale_no_dates.columns.get_loc(arguments.predict_metric_name)]
+    data_to_scale_no_dates = data_to_scale_no_dates.reindex(columns=col_list)
     if (arguments.cartesian_multiplication):
         data_to_scale_no_dates = add_multiply(data_to_scale_no_dates, arguments.predict_metric_name)
         data_to_scale_no_dates = mask_under_threshold(data_to_scale_no_dates, arguments.predict_metric_name,
@@ -241,6 +267,7 @@ def main(arguments):
 
 
     fig = go.Figure([
+
         go.Scatter(
             name='Real',
             x=save_dates.values[Y_train.shape[0]:].reshape(-1),
@@ -295,14 +322,14 @@ def main(arguments):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='LSTM supervised')
     parser.add_argument('--timesteps_to_the_future', dest='timesteps_to_the_future', type=int, required=False,
-                        help='timesteps to predict', default=2)
-    parser.add_argument('--batch_size', dest='batch_size', type=int, required=False, help='batch size', default=4)
+                        help='timesteps to predict', default=288*7)
+    parser.add_argument('--batch_size', dest='batch_size', type=int, required=False, help='batch size', default=150)
     parser.add_argument('--epochs', dest='epochs', type=int, required=False, help='epochs', default=25)
     parser.add_argument('--number_of_nodes', dest='number_of_nodes', type=int, required=False, help='number of nodes',
                         default=50)
     parser.add_argument('--predict_metric_name', dest='predict_metric_name', type=str, required=False,
                         help='predict metric name',
-                        default='cpu_user_util')
+                        default='max_cpu_load')
     parser.add_argument('--cartesian_multiplication', dest='cartesian_multiplication', type=bool, required=False,
                         help='cartesian multiplication flag',
                         default=False)
@@ -311,6 +338,6 @@ if __name__ == "__main__":
                         default=0.9)
     parser.add_argument('--day', dest='day', type=int, required=False,
                         help='-1  == p99, 0 == 5min, day > 1 == num of points  ',
-                        default=4)
+                        default=0)
     args = parser.parse_args()
     main(args)
