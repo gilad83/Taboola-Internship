@@ -45,8 +45,8 @@ paths_server = [[avg_cpu_load, 'avg_cpu_load'], [avg_memory, 'avg_memory']
 
 
 # Data/Single servers/AM/40 cores 187.35 GB
-data_path_servers  = 'Data/Single servers'
-data_path_cross_Dc = 'Data/Cross DC'
+data_path_servers  = '../Data/Single servers'
+data_path_cross_Dc = '../Data/Cross DC'
 cores_32_path = '32 cores 125.6 GB'
 cores_40_path = '40 cores 187.35 GB'
 cores_48_path = '48 cores 187.19 GB'

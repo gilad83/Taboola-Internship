@@ -1,9 +1,9 @@
-from BatchModel import Data
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from old_files.BatchModel import Data
+from sklearn.preprocessing import MinMaxScaler
 import pandas as pd
 import numpy as np
 from keras.models import Sequential
-from keras.layers import LSTM, Dense, Dropout, RepeatVector, TimeDistributed, Activation
+from keras.layers import LSTM, Dense, Dropout, RepeatVector, TimeDistributed
 import matplotlib.pyplot as plt
 import seaborn as sns
 
